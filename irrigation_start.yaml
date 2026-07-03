@@ -1,0 +1,83 @@
+alias: Beregnung starten
+triggers:
+  - trigger: template
+    value_template: >-
+      {% set total_minutes = states('input_number.gesamtbewasserungszeit') |
+      float(0) %} {{ now() >= (state_attr('sun.sun', 'next_rising') |
+      as_datetime | as_local - timedelta(minutes=total_minutes)) }}
+conditions:
+  - condition: state
+    entity_id: input_boolean.bewasserungsautomatik
+    state: "on"
+  - condition: template
+    value_template: >-
+      {{ this.attributes.last_triggered is none or
+      this.attributes.last_triggered.date() < now().date() }}
+actions:
+  - repeat:
+      for_each:
+        - name: berg
+          runtime: number.esphome_web_4c08ec_berg_laufzeit
+          switch: switch.esphome_web_4c08ec_aktiviere_berg
+        - name: terrasse
+          runtime: number.esphome_web_4c08ec_terrasse_laufzeit
+          switch: switch.esphome_web_4c08ec_aktiviere_terrasse
+        - name: nord
+          runtime: number.esphome_web_4c08ec_nord_laufzeit
+          switch: switch.esphome_web_4c08ec_aktiviere_nord
+        - name: treppe
+          runtime: number.esphome_web_4c08ec_treppe_laufzeit
+          switch: switch.esphome_web_4c08ec_aktiviere_treppe
+        - name: pflanzen
+          runtime: number.esphome_web_4c08ec_pflanzen_laufzeit
+          switch: switch.esphome_web_4c08ec_aktiviere_pflanzen
+      sequence:
+        - choose:
+            - conditions:
+                - condition: template
+                  value_template: "{{ states(repeat.item.runtime) | int(0) > 1 }}"
+              sequence:
+                - action: switch.turn_on
+                  target:
+                    entity_id: "{{ repeat.item.switch }}"
+          default:
+            - action: switch.turn_off
+              target:
+                entity_id: "{{ repeat.item.switch }}"
+  - delay:
+      seconds: 10
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: |-
+              {{ is_state('switch.esphome_web_4c08ec_aktiviere_berg', 'on') or
+                 is_state('switch.esphome_web_4c08ec_aktiviere_terrasse', 'on') or
+                 is_state('switch.esphome_web_4c08ec_aktiviere_nord', 'on') or
+                 is_state('switch.esphome_web_4c08ec_aktiviere_treppe', 'on') or
+                 is_state('switch.esphome_web_4c08ec_aktiviere_pflanzen', 'on') }}
+        sequence:
+          - action: notify.notify
+            continue_on_error: true
+            data:
+              message: Sprinkler Garten gestartet
+          - action: switch.turn_on
+            target:
+              entity_id: switch.esphome_web_4c08ec_garten_sprinkler
+          - action: timer.start
+            target:
+              entity_id: timer.restzeit_bewasserung
+            data:
+              duration: >-
+                {{ (states('input_number.gesamtbewasserungszeit') | float(0) *
+                60) | int | timestamp_custom('%H:%M:%S', false) }}
+          - action: input_number.set_value
+            target:
+              entity_id: input_number.beregnung_wasserbilanz
+            data:
+              value: 0
+    default:
+      - action: notify.notify
+        continue_on_error: true
+        data:
+          message: Gartenbewässerung nicht erforderlich
+mode: single
