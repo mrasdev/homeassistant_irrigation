@@ -33,6 +33,8 @@ The evapotranspiration model uses a custom approximation formula. The calculated
 
 This value is constrained between `+max_soil` and `-max_soil` (defined by `input_number.beregnung_max_bodenwasser`). A negative balance creates a soil moisture **deficit**, which scales the baseline watering durations for each zone.
 
+Please note that the runtime cannot be set to 0. Therefore, a value of 1 indicates that no irrigation will take place.
+
 ### 2. Sunrise Trigger Window
 To prevent watering during high-evaporation periods or peak daytime heat, the execution automation calculates a dynamic start window:
 
