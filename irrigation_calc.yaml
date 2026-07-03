@@ -1,0 +1,84 @@
+alias: Beregnungszeiten berechnen
+triggers:
+  - at: "22:00:00"
+    trigger: time
+actions:
+  - target:
+      entity_id: input_number.gesamtbewasserungszeit
+    data:
+      value: 0
+    action: input_number.set_value
+  - target:
+      entity_id: input_number.beregnung_wasserbilanz
+    data:
+      value: "{{ new_balance }}"
+    action: input_number.set_value
+  - target:
+      entity_id: input_number.beregnung_defizit
+    data:
+      value: "{{ dashboard_deficit }}"
+    action: input_number.set_value
+  - repeat:
+      for_each: "{{ zones }}"
+      sequence:
+        - variables:
+            base_min: "{{ states(repeat.item.base)|float(0) }}"
+            enabled: "{{ base_min > 0 }}"
+            runtime_raw: "{{ (base_min * deficit * scale * 60) if enabled else 0 }}"
+            runtime_final: >-
+              {{ [max_runtime, [1, runtime_raw]|max]|min | round(0) | int if
+              enabled else 1 }}
+        - target:
+            entity_id: "{{ repeat.item.target }}"
+          data:
+            value: "{{ runtime_final }}"
+          action: number.set_value
+        - target:
+            entity_id: input_number.gesamtbewasserungszeit
+          data:
+            value: >-
+              {% set aktueller_wert =
+              states('input_number.gesamtbewasserungszeit') | float(0) %} {% set
+              neue_minuten = runtime_final / 60 %} {{ (aktueller_wert +
+              neue_minuten) | round(1) }}
+          action: input_number.set_value
+mode: single
+variables:
+  max_runtime: 3600
+  scale: "{{ states('input_number.beregnung_skalierung')|float(100) / 100 }}"
+  max_soil: "{{ states('input_number.beregnung_max_bodenwasser')|float(30) }}"
+  rain: "{{ states('sensor.wetterstation_daily_rain')|float(0) }}"
+  solar: "{{ states('sensor.wetterstation_tages_sonneneinstrahlung')|float(0) }}"
+  vpd: "{{ states('sensor.wetterstation_tages_vpd')|float(0) }}"
+  tmax: "{{ states('sensor.wetterstation_tages_max_temperatur')|float(0) }}"
+  tmin: "{{ states('sensor.wetterstation_tages_min_temperatur')|float(0) }}"
+  wind: "{{ states('sensor.wetterstation_tages_windmenge')|float(0) }}"
+  et0: |
+    {% set tmean = (tmax + tmin) / 2 %} {% set et =
+      2.0
+      * (solar / 5000)
+      * (vpd / 2000)
+      * (1 + (tmean - 20) / 40)
+      * (1 + wind / 120)
+    %} {{ [et, 0]|max }}
+  new_balance: >
+    {% set nb = (states('input_number.beregnung_wasserbilanz')|float(0)) + rain
+    - et0 %} {{ [max_soil, [-max_soil, nb]|max]|min }}
+  deficit: "{{ [0, 0 - new_balance]|max }}"
+  dashboard_deficit: "{{ deficit | round(2) }}"
+  zones:
+    - name: treppe
+      base: input_number.beregnung_basiswert_treppe
+      target: number.esphome_web_4c08ec_treppe_laufzeit
+    - name: pflanzen
+      base: input_number.beregnung_basiswert_pflanzen
+      target: number.esphome_web_4c08ec_pflanzen_laufzeit
+    - name: nord
+      base: input_number.beregnung_basiswert_nord
+      target: number.esphome_web_4c08ec_nord_laufzeit
+    - name: berg
+      base: input_number.beregnung_basiswert_berg
+      target: number.esphome_web_4c08ec_berg_laufzeit
+    - name: terrasse
+      base: input_number.beregnung_basiswert_terrasse
+      target: number.esphome_web_4c08ec_terrasse_laufzeit
