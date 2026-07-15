@@ -13,11 +13,6 @@ actions:
     data:
       value: "{{ new_balance }}"
     action: input_number.set_value
-  - target:
-      entity_id: input_number.beregnung_defizit
-    data:
-      value: "{{ dashboard_deficit }}"
-    action: input_number.set_value
   - repeat:
       for_each: "{{ zones }}"
       sequence:
@@ -48,24 +43,23 @@ variables:
   scale: "{{ states('input_number.beregnung_skalierung')|float(100) / 100 }}"
   max_soil: "{{ states('input_number.beregnung_max_bodenwasser')|float(30) }}"
   rain: "{{ states('sensor.wetterstation_daily_rain')|float(0) }}"
-  solar: "{{ states('sensor.wetterstation_tages_sonneneinstrahlung')|float(0) }}"
-  vpd: "{{ states('sensor.wetterstation_tages_vpd')|float(0) }}"
-  tmax: "{{ states('sensor.wetterstation_tages_max_temperatur')|float(0) }}"
-  tmin: "{{ states('sensor.wetterstation_tages_min_temperatur')|float(0) }}"
-  wind: "{{ states('sensor.wetterstation_tages_windmenge')|float(0) }}"
+  solar: "{{ states('sensor.wetter_sun_sum_day')|float(0) }}"
+  vpd: "{{ states('sensor.wetter_vpd_mittel_24h')|float(0) / 10 }}"
+  tmax: "{{ states('input_number.temperatur_tagesmaximum')|float(0) }}"
+  tmin: "{{ states('input_number.temperatur_tagesminimum')|float(0) }}"
+  wind: "{{ states('sensor.wetter_windrun_day')|float(0) }}"
   et0: |
     {% set tmean = (tmax + tmin) / 2 %} {% set et =
-      2.0
-      * (solar / 5000)
-      * (vpd / 2000)
+      2.3
+      * (solar / 3500)
+      * (vpd / 1.5)
       * (1 + (tmean - 20) / 40)
       * (1 + wind / 120)
-    %} {{ [et, 0]|max }}
+    %} {{ ([et, 0] | max | round(2)) | float }}
   new_balance: >
     {% set nb = (states('input_number.beregnung_wasserbilanz')|float(0)) + rain
-    - et0 %} {{ [max_soil, [-max_soil, nb]|max]|min }}
-  deficit: "{{ [0, 0 - new_balance]|max }}"
-  dashboard_deficit: "{{ deficit | round(2) }}"
+    - et0 %} {{ [max_soil, [-max_soil, nb]|max]|min | round(2) }}
+  deficit: "{{ [0, -(new_balance | float)] | max | round(2) }}"
   zones:
     - name: treppe
       base: input_number.beregnung_basiswert_treppe
