@@ -9,6 +9,11 @@ actions:
       value: 0
     action: input_number.set_value
   - target:
+      entity_id: input_number.beregnung_bilanz_berechnet
+    data:
+      value: "{{ new_balance }}"
+    action: input_number.set_value
+  - target:
       entity_id: input_number.beregnung_wasserbilanz
     data:
       value: "{{ new_balance }}"
@@ -48,17 +53,23 @@ variables:
   tmax: "{{ states('input_number.temperatur_tagesmaximum')|float(0) }}"
   tmin: "{{ states('input_number.temperatur_tagesminimum')|float(0) }}"
   wind: "{{ states('sensor.wetter_windrun_day')|float(0) }}"
+  effective_rain: |
+    {% if rain <= 5 %}
+      {{ rain }}
+    {% else %}
+      {{ (5 + (rain - 5) * 0.75) | round(2) }}
+    {% endif %}
   et0: |
     {% set tmean = (tmax + tmin) / 2 %} {% set et =
-      2.3
+      4.0
       * (solar / 3500)
       * (vpd / 1.5)
       * (1 + (tmean - 20) / 40)
       * (1 + wind / 120)
     %} {{ ([et, 0] | max | round(2)) | float }}
   new_balance: >
-    {% set nb = (states('input_number.beregnung_wasserbilanz')|float(0)) + rain
-    - et0 %} {{ [max_soil, [-max_soil, nb]|max]|min | round(2) }}
+    {% set nb = (states('input_number.beregnung_wasserbilanz')|float(0)) +
+    effective_rain - et0 %} {{ [max_soil, [-max_soil, nb]|max]|min | round(2) }}
   deficit: "{{ [0, -(new_balance | float)] | max | round(2) }}"
   zones:
     - name: treppe
