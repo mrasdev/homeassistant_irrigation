@@ -61,7 +61,7 @@ variables:
     {% endif %}
   et0: |
     {% set tmean = (tmax + tmin) / 2 %} {% set et =
-      4.0
+      2.5
       * (solar / 3500)
       * (vpd / 1.5)
       * (1 + (tmean - 20) / 40)
